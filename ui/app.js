@@ -290,6 +290,21 @@ function originalCard(info, sc, text) {
     // Dictionary lookups follow the word's main morpheme (the last one that isn't a particle).
     if (!p.particle) lexArgs = { lemma: sc === "hebrew" ? p.lemma_raw : p.lemma, strongs: p.strongs.map((e) => e.number) };
   });
+  const mainPart = [...info.parts].reverse().find((p) => !p.particle) ?? info.parts[0];
+  const letters = (s) => s.replace(/\u05BE/g, " ").normalize("NFD").replace(/[\u0300-\u036F\u0591-\u05C7]/g, "").replace(/[^\p{L} ]/gu, "").trim();
+  const form = letters(text);
+  const actions = el("div", { className: "actions" });
+  if (mainPart?.lemma) {
+    const all = el("button", { className: "btn small", type: "button", textContent: "Find all forms" });
+    all.addEventListener("click", () => runSearch(`${mainPart.lemma}@*`));
+    actions.append(all);
+  }
+  if (form) {
+    const one = el("button", { className: "btn small ghost", type: "button", textContent: "Find this form" });
+    one.addEventListener("click", () => runSearch(form.includes(" ") ? `"${form}"` : form));
+    actions.append(one);
+  }
+  card.append(actions);
   if (lexArgs) card.append(lexSection(info.lexicons, lexArgs));
   return card;
 }
@@ -299,23 +314,22 @@ async function runSearch(query) {
   const pane = $("#pane-search");
   setPanel(true);
   selectTab("search");
-  if (scriptOf(S.v1) !== "latin") {
-    pane.replaceChildren(el("div", { className: "panel-empty" }, el("strong", { textContent: "Search is English-only for now" }), `Switch the version to an English one (such as KJV) to search. ${S.v1.toUpperCase()} is Greek or Hebrew text.`));
-    return;
-  }
+  const sc = scriptOf(S.v1);
   S.searchVersion = S.v1;
-  pane.replaceChildren(el("p", { className: "sum", textContent: "Searching…" }));
+  pane.replaceChildren(el("p", { className: "sum", textContent: sc === "latin" || S.indexed?.has(S.v1) ? "Searching…" : "Searching… (the first Greek or Hebrew search of a version prepares an index)" }));
   store.set("history", [query, ...store.get("history", []).filter((h) => h !== query)].slice(0, 8));
   let r;
   try { r = await invoke("find", { version: S.v1, query }); }
-  catch (e) { pane.replaceChildren(el("div", { className: "panel-empty" }, el("strong", { textContent: "Search failed" }), String(e))); return; }
+  catch (e) { pane.replaceChildren(el("div", { className: "panel-empty" }, el("strong", { textContent: "Couldn’t run that search" }), String(e))); return; }
+  (S.indexed ??= new Set()).add(S.v1);
   if (!r.hits.length) {
-    pane.replaceChildren(el("div", { className: "panel-empty" }, el("strong", { textContent: `No verses match “${query}”` }), `Searched ${S.v1.toUpperCase()}. Try fewer words, or a prefix like love*.`));
+    const tip = sc === "latin" ? "Try fewer words, or a wildcard like love*." : "Accents and vowel points are ignored unless you type them. Use lemma@* (for example ἀγαπάω@*) to find every form of a word.";
+    pane.replaceChildren(el("div", { className: "panel-empty" }, el("strong", { textContent: `No verses match “${query}”` }), `Searched ${S.v1.toUpperCase()}. ${tip}`));
     return;
   }
   const sum = el("p", { className: "sum", textContent: `${r.hits.length}${r.capped ? "+" : ""} verses · “${query}” · ${S.v1.toUpperCase()}${r.capped ? " (showing first 500)" : ""}` });
   const list = r.hits.map((h) => {
-    const b = el("button", { className: "hit", type: "button" }, el("b", { textContent: `${h.book} ${h.chapter}:${h.verse}` }), el("span", {}, renderTokens(h.tokens)));
+    const b = el("button", { className: "hit", type: "button" }, el("b", { textContent: `${h.book} ${h.chapter}:${h.verse}` }), el("span", { className: sc === "latin" ? "" : `hit-text ${sc}`, lang: LANG[sc], dir: sc === "hebrew" ? "rtl" : "ltr" }, renderTokens(h.tokens)));
     b.addEventListener("click", () => {
       list.forEach((x) => x.classList.remove("sel"));
       b.classList.add("sel");
@@ -457,7 +471,7 @@ async function refresh() {
   if (!text) {
     store.get("history", []).forEach((h) => next.push({ kind: "search", query: h, label: h, note: "Recent" }));
   } else {
-    const ref = /["*]|^[hg]\d/i.test(text) ? null : await invoke("goto", { version: S.v1, text });
+    const ref = /["*@]|^[hg]\d|^[/'.]/i.test(text) ? null : await invoke("goto", { version: S.v1, text });
     if (mine !== pending) return;
     if (ref) {
       const verse = /[:.]\s*\d+\s*$/.test(text) ? ref[2] : null;
@@ -474,7 +488,35 @@ function run(it) {
   if (it.kind === "go") goTo(it.ref[0], it.ref[1], it.verse);
   else runSearch(it.query);
 }
-function openPalette() { q.value = ""; dlg.showModal(); refresh(); }
+const KEYS = { greek: [..."αβγδεζηθικλμνξοπρστυφχψω"], hebrew: [..."אבגדהוזחטיכלמנסעפצקרשת"] };
+const HINTS = {
+  latin: ["love*", "wom?n", "\"so loved\"", "G25", "H7225", "/ faith hope"],
+  greek: ["λόγος", "λογ*", "\"ἐν ἀρχῇ\"", "ἀγαπάω@v*", "G25"],
+  hebrew: ["בראשית", "\"בראשית ברא\"", "ברא@vq*", "H7225"],
+};
+function drawPalette() {
+  const sc = scriptOf(S.v1);
+  const hint = $(".hint-syntax");
+  hint.replaceChildren("Syntax: ", ...HINTS[sc].flatMap((t) => [el("code", { textContent: t, lang: LANG[sc] }), " "]));
+  const pad = $("#keypad"), btn = $("#keypad-btn");
+  btn.hidden = sc === "latin";
+  pad.hidden = sc === "latin" || btn.getAttribute("aria-expanded") !== "true";
+  if (sc === "latin") return;
+  pad.dir = sc === "hebrew" ? "rtl" : "ltr";
+  pad.replaceChildren(...[...KEYS[sc], "*", "?", "@"].map((ch) => {
+    const b = el("button", { type: "button", className: "key", textContent: ch, ariaLabel: `Insert ${ch}`, lang: LANG[sc] });
+    b.addEventListener("mousedown", (e) => e.preventDefault()); // keep focus (and the caret) in the search box
+    b.addEventListener("click", () => { q.setRangeText(ch, q.selectionStart ?? q.value.length, q.selectionEnd ?? q.value.length, "end"); q.dispatchEvent(new Event("input")); });
+    return b;
+  }));
+}
+$("#keypad-btn").addEventListener("click", () => {
+  const open = $("#keypad-btn").getAttribute("aria-expanded") !== "true";
+  $("#keypad-btn").setAttribute("aria-expanded", String(open));
+  drawPalette();
+  q.focus();
+});
+function openPalette() { q.value = ""; drawPalette(); dlg.showModal(); refresh(); }
 q.addEventListener("input", refresh);
 q.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {

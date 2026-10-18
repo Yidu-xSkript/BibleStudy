@@ -8,6 +8,7 @@ pub mod lists;
 pub mod module;
 pub mod morph;
 pub mod notes;
+pub mod osearch;
 pub mod script;
 pub mod search;
 pub mod store;

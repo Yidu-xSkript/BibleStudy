@@ -139,7 +139,8 @@ impl Versification {
     /// Book index plus the chapter and verse if they were written.
     fn parse_parts(&self, s: &str) -> Option<(usize, Option<usize>, Option<usize>)> {
         let s = s.trim();
-        let split = s.rfind(|c: char| c.is_alphabetic() || c == '.')? + 1;
+        // Split after the last letter (a char boundary, since book names can be typed in any script).
+        let split = s.char_indices().rev().find(|(_, c)| c.is_alphabetic() || *c == '.').map(|(i, c)| i + c.len_utf8())?;
         let (name, nums) = s.split_at(split);
         let name = norm(name);
         if name.is_empty() {
@@ -228,6 +229,15 @@ mod tests {
         assert_eq!(v.parse_ref("Ps 119:176").map(|r| r.0), Some(18));
         assert_eq!(v.parse_ref("Song 2:1"), Some((21, 2, 1)));
         assert_eq!(v.parse_ref("Gen 1:99"), None);
+    }
+
+    #[test]
+    fn non_latin_text_is_not_a_reference_and_does_not_panic() {
+        let v = Versification::kjv();
+        for s in ["רבו", "λόγος", "ἀγαπάω@v*", "é", "日本語 3:16", "ב3", "…"] {
+            assert_eq!(v.parse_ref(s), None, "{s}");
+            assert_eq!(v.parse_span(s), None, "{s}");
+        }
     }
 
     #[test]

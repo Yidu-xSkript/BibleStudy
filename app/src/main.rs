@@ -10,6 +10,7 @@ use bible_study_core::{
     lexicon::{Language, Lexicon, Span, Strongs, StrongsEntry},
     module::{tokens, Module},
     morph::{greek_parse, greek_scheme, hebrew_parse, morphemes},
+    osearch,
     script::{self, Script},
     search,
     vmap::{map_verse, Vmap},
@@ -46,6 +47,8 @@ struct App {
     strongs: Mutex<Option<Arc<Strongs>>>,
     lexicons: Mutex<HashMap<String, Arc<Lexicon>>>,
     library: library::Library,
+    /// Folded-word indexes for Greek/Hebrew search, built the first time a version is searched.
+    oindex: Mutex<HashMap<String, Arc<osearch::Index>>>,
 }
 
 impl App {
@@ -64,6 +67,17 @@ impl App {
         let m = Arc::new(Module::open(&path).map_err(|e| format!("{id}: {e}"))?);
         self.cache.lock().unwrap().insert(id.to_string(), m.clone());
         Ok(m)
+    }
+
+    fn oindex(&self, version: &str) -> Result<Arc<osearch::Index>, String> {
+        if let Some(i) = self.oindex.lock().unwrap().get(version) {
+            return Ok(i.clone());
+        }
+        let text = self.module(version)?;
+        let morph = script::morph_companion(version).map(|id| self.module(id)).transpose()?;
+        let idx = Arc::new(osearch::Index::build(&text, self.script(version), morph.as_deref()));
+        self.oindex.lock().unwrap().insert(version.to_string(), idx.clone());
+        Ok(idx)
     }
 
     fn strongs(&self) -> Result<Arc<Strongs>, String> {
@@ -212,7 +226,7 @@ struct FindOut {
     capped: bool,
 }
 
-fn verse_tokens(m: &Module, i: usize, sc: Script, query: Option<&str>, cantillation: bool) -> Vec<TokenOut> {
+fn verse_tokens(m: &Module, i: usize, sc: Script, query: Option<&str>, cantillation: bool, hit_words: &[usize]) -> Vec<TokenOut> {
     let raw = m.raw(i).unwrap_or_default();
     if sc != Script::Latin {
         // Original-language text: one token per word, decoded to Unicode.
@@ -227,7 +241,7 @@ fn verse_tokens(m: &Module, i: usize, sc: Script, query: Option<&str>, cantillat
             if w > 0 {
                 out.push(TokenOut { t: " ".into(), s: None, m: None, w: None, h: false });
             }
-            out.push(TokenOut { t, s: None, m: None, w: Some(w), h: false });
+            out.push(TokenOut { t, s: None, m: None, w: Some(w), h: hit_words.contains(&w) });
         }
         return out;
     }
@@ -289,14 +303,14 @@ async fn chapter(app: State<'_, App>, version: String, book: usize, chapter: usi
         .enumerate()
         .map(|(k, i)| {
             let n = k + 1;
-            let mut cells = vec![vec![VerseOut { n, b: book, c: chapter, tokens: verse_tokens(&pm, i, psc, None, cantillation) }]];
+            let mut cells = vec![vec![VerseOut { n, b: book, c: chapter, tokens: verse_tokens(&pm, i, psc, None, cantillation, &[]) }]];
             for (_, om, ov, osc) in &others {
                 let idx = map_verse((&pv, &pm.vers), (ov, &om.vers), &(code.clone(), chapter, n));
                 cells.push(
                     idx.into_iter()
                         .filter_map(|j| {
                             let (b, c, v) = om.vers.locate(j)?;
-                            Some(VerseOut { n: v, b, c, tokens: verse_tokens(om, j, *osc, None, cantillation) })
+                            Some(VerseOut { n: v, b, c, tokens: verse_tokens(om, j, *osc, None, cantillation, &[]) })
                         })
                         .collect(),
                 );
@@ -308,21 +322,30 @@ async fn chapter(app: State<'_, App>, version: String, book: usize, chapter: usi
     Ok(ChapterOut { rows, notes, chapter_note, prev, next })
 }
 
+/// Search a version. English follows `search.rs`; Greek and Hebrew follow `osearch.rs` (the first search of a
+/// version builds its index, which takes a moment).
 #[tauri::command]
 async fn find(app: State<'_, App>, version: String, query: String) -> Result<FindOut, String> {
-    if app.script(&version) != Script::Latin {
-        return Err("Searching Greek and Hebrew text isn't available yet. Pick an English version to search.".into());
-    }
     let m = app.module(&version)?;
-    let mut idx = search::search(&m, &query, HIT_CAP + 1);
-    let capped = idx.len() > HIT_CAP;
-    idx.truncate(HIT_CAP);
-    let hits = idx
+    let sc = app.script(&version);
+    let mut found: Vec<(usize, Vec<usize>)>;
+    if sc == Script::Latin {
+        found = search::search(&m, &query, HIT_CAP + 1).into_iter().map(|i| (i, vec![])).collect();
+    } else {
+        let strongs = app.strongs()?;
+        let q = osearch::parse(&query, sc, Some(&strongs))?;
+        let idx = app.oindex(&version)?;
+        found = idx.search(&m, &q, HIT_CAP + 1).into_iter().map(|h| (h.verse, h.words)).collect();
+    }
+    let capped = found.len() > HIT_CAP;
+    found.truncate(HIT_CAP);
+    let hits = found
         .into_iter()
-        .filter_map(|i| {
+        .filter_map(|(i, words)| {
             let (b, chapter, verse) = m.vers.locate(i)?;
             let code = m.vers.books[b].code.clone();
-            Some(HitOut { book: book_name(&code), code, chapter, verse, tokens: verse_tokens(&m, i, Script::Latin, Some(&query), false) })
+            let q = (sc == Script::Latin).then_some(query.as_str());
+            Some(HitOut { book: book_name(&code), code, chapter, verse, tokens: verse_tokens(&m, i, sc, q, false, &words) })
         })
         .collect();
     Ok(FindOut { hits, capped })
@@ -473,7 +496,7 @@ fn main() {
     let dir = install_dir();
     let versions = discover(&dir);
     tauri::Builder::default()
-        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()) })
+        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()), oindex: Mutex::new(HashMap::new()) })
         .invoke_handler(tauri::generate_handler![
             status, books, goto, convert, chapter, find, word_info, strongs_info, lookup, font,
             library::note_get, library::note_set, library::notes_all,

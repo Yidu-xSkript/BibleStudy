@@ -7,10 +7,31 @@ A modern desktop Bible-study app in Rust, inspired by BibleWorks 8. It is a pers
 ## What it does
 
 - **Read** English, Greek (Byzantine, NA27, LXX and others) and Hebrew (WTT, with optional cantillation), with verse-aligned side-by-side comparison across different versifications.
-- **Search** English texts by word, phrase, prefix (`love*`) or Strong's number (`G25`, `H7225`).
+- **Search** English, Greek and Hebrew (see below).
 - **Analyze** any Greek or Hebrew word: parsing, lemma, Strong's definition, and the full lexicons (Thayer, Friberg, Gingrich, Liddell-Scott, Louw-Nida, BDB, Holladay).
 - **Notes** on verses and chapters, **verse lists** (with BibleWorks `.vls` import/export and list comparison) and **word lists** (frequency lists with part-of-speech filters).
 - Light and dark themes.
+
+## Search syntax
+
+Open the search box with <kbd>Ctrl</kbd>+<kbd>K</kbd> (or `/`). It works the same in every version:
+
+| Type | Finds |
+| --- | --- |
+| `love*` `wom?n` `*belie*` | wildcards: `*` any run of letters, `?` one letter, anywhere in a word |
+| `"so loved"` | a phrase of consecutive words |
+| `faith hope` | verses containing all the words (start with `/` for any of them, `'` for one phrase) |
+| `G25` `H7225` | a Strong's number |
+
+In Greek and Hebrew versions, also:
+
+| Type | Finds |
+| --- | --- |
+| `λόγος` `בראשית` | a word form. Accents, breathings, vowel points and cantillation are ignored unless you type them. The **αβ** button opens a letter keypad. |
+| `logos` | Latin letters are read as Beta Code (Greek) or Westminster letters (Hebrew) |
+| `ἀγαπάω@v*` `ברא@vq*` | lemma plus morphology code (either side may be `*`; the code has an implied `*` at the end). `ἀγαπάω@*` finds every form. |
+
+Hebrew prefixes (ה, ו, ב …) stay attached to the word, so use `lemma@*` to find all forms. A lemma search includes homonyms; the Westminster homonym code narrows it (`רעה@*Ha*` is the first).
 
 ## Layout
 

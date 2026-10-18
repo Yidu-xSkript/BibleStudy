@@ -2,5 +2,10 @@
 resolver = "2"
 members = ["core", "app"]
 
+# Dev builds are what gets run day to day: optimise the dependencies and the core library
+# (text decoding and search are heavy) and keep the app shell quick to rebuild.
 [profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.bible-study-core]
 opt-level = 2

@@ -194,6 +194,33 @@ impl Strongs {
         Vec::new()
     }
 
+    /// The words a Strong's number stands for, to match against text lemmas: Greek lemmas in
+    /// Unicode (with the deponent form of any `-ω` verb), or Hebrew consonant skeletons.
+    pub fn lemmas_of(&self, hebrew: bool, number: u32) -> Vec<String> {
+        let table = if hebrew { &self.hebrew } else { &self.greek };
+        let guess = if hebrew { number as usize } else { number as usize - 1 };
+        for i in [guess, guess.saturating_sub(1), guess + 1] {
+            let Some((n, words, ..)) = table.get(i).and_then(|t| strongs_header(&t)) else { continue };
+            if n != number {
+                continue;
+            }
+            let mut out = Vec::new();
+            for (_, w) in &words {
+                if hebrew {
+                    push_unique(&mut out, lex_hebrew_consonants(w));
+                } else {
+                    let g = lex_greek(w);
+                    if let Some(stem) = g.strip_suffix('ω') {
+                        push_unique(&mut out, format!("{stem}ομαι"));
+                    }
+                    push_unique(&mut out, g);
+                }
+            }
+            return out;
+        }
+        Vec::new()
+    }
+
     /// Strong's numbers whose Hebrew word has the same consonants as a Westminster lemma.
     pub fn hebrew_lemma(&self, mc_lemma: &str) -> Vec<u32> {
         self.h_skeleton.get(&mc_consonants(mc_lemma)).cloned().unwrap_or_default()

@@ -260,7 +260,18 @@ mark { background: var(--hit); color: var(--on-hit); border-radius: 0.2rem; padd
 .palette:not([open]) { opacity: 0; transform: translateY(-4px); }
 @starting-style { .palette[open] { opacity: 0; transform: translateY(-4px); } }
 #palette-form { margin: 0; }
-#q { display: block; width: 100%; height: 3.25rem; padding: 0 1rem; border: 0; border-bottom: 1px solid var(--line); background: none; font-size: var(--t-md); outline: none; border-radius: 0.9rem 0.9rem 0 0; }
+.q-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+#q { display: block; flex: 1; min-width: 0; height: 3.25rem; padding: 0 1rem; border: 0; background: none; font-size: var(--t-md); outline: none; border-radius: 0.9rem 0 0 0; }
+#keypad-btn { margin-right: 0.5rem; width: 2.5rem; font-size: 1rem; }
+#keypad-btn[hidden] { display: none; }
+#keypad-btn[aria-expanded="true"] { background: var(--tint); color: var(--primary); }
+.keypad { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); background: var(--panel); }
+.keypad[hidden] { display: none; }
+.key { min-width: 2rem; height: 2rem; padding: 0 0.4rem; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--raised); font: 1.15rem var(--read); }
+.key:hover { border-color: var(--primary); color: var(--primary); }
+.key:focus-visible { outline-offset: 1px; }
+.hit-text.hebrew { font-size: 1.25rem; line-height: 1.8; }
+.hit-text.greek { font-size: 1.1rem; line-height: 1.6; }
 #q::placeholder { color: var(--muted); }
 #results { list-style: none; margin: 0; padding: 0.4rem; max-height: 20rem; overflow: auto; }
 #results li { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 0.5rem; cursor: pointer; }

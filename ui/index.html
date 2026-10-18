@@ -63,10 +63,14 @@
 
 <dialog id="palette" class="palette" aria-label="Search or go to a passage">
   <form method="dialog" id="palette-form">
-    <input id="q" type="text" role="combobox" aria-expanded="true" aria-controls="results" aria-autocomplete="list"
-           placeholder="Go to John 3:16, or search words, “phrases”, H430, G3056…" autocomplete="off" spellcheck="false">
+    <div class="q-row">
+      <input id="q" type="text" role="combobox" aria-expanded="true" aria-controls="results" aria-autocomplete="list"
+             placeholder="Go to John 3:16, or search words, “phrases”, lemma@code, H430, G3056…" autocomplete="off" spellcheck="false">
+      <button id="keypad-btn" type="button" class="icon-btn" aria-expanded="false" aria-controls="keypad" title="Greek / Hebrew letters" aria-label="Greek or Hebrew letter keypad" hidden>αβ</button>
+    </div>
+    <div id="keypad" class="keypad" hidden></div>
     <ul id="results" role="listbox" aria-label="Actions"></ul>
-    <p class="hint"><kbd>↵</kbd> run <kbd>↑</kbd><kbd>↓</kbd> choose <kbd>Esc</kbd> close<span class="hint-syntax">Syntax: <code>love*</code> <code>"so loved"</code> <code>G25</code> <code>H7225</code></span></p>
+    <p class="hint"><kbd>↵</kbd> run <kbd>↑</kbd><kbd>↓</kbd> choose <kbd>Esc</kbd> close<span class="hint-syntax"></span></p>
   </form>
 </dialog>
 
