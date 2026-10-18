@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod library;
+mod study;
 
 use bible_study_core::{
     canon::book_name,
@@ -48,6 +49,7 @@ struct App {
     tsk: Mutex<Option<Arc<bible_study_core::tsk::Tsk>>>,
     lexicons: Mutex<HashMap<String, Arc<Lexicon>>>,
     library: library::Library,
+    study: study::Study,
     /// Folded-word indexes for Greek/Hebrew search, built the first time a version is searched.
     oindex: Mutex<HashMap<String, Arc<osearch::Index>>>,
 }
@@ -508,12 +510,13 @@ fn main() {
     let dir = install_dir();
     let versions = discover(&dir);
     tauri::Builder::default()
-        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), tsk: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()), oindex: Mutex::new(HashMap::new()) })
+        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), tsk: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()), study: study::Study::default(), oindex: Mutex::new(HashMap::new()) })
         .invoke_handler(tauri::generate_handler![
             status, books, goto, convert, chapter, find, word_info, strongs_info, lookup, font,
             library::note_get, library::note_set, library::notes_all,
             library::vl_all, library::vl_get, library::vl_create, library::vl_rename, library::vl_delete, library::vl_add_span,
             library::vl_add_refs, library::vl_remove, library::vl_sort, library::vl_combine, library::vl_export, library::vl_import, library::vl_texts,
+            study::fc_decks, study::fc_open, study::fc_grade, study::fc_learned, study::fc_reset, study::tl_all,
             library::tsk_get, library::tsk_texts, library::wl_generate, library::wl_all, library::wl_get, library::wl_save, library::wl_delete, library::wl_combine
         ])
         .run(tauri::generate_context!())

@@ -4,6 +4,7 @@
 use crate::App;
 use bible_study_core::{
     canon::book_name,
+    flashcards,
     lists::{self, ListRef, Op, VerseLists},
     module::tokens,
     notes::{self, Notes},
@@ -27,6 +28,7 @@ pub struct Library {
     notes: Mutex<Notes>,
     vlists: Mutex<VerseLists>,
     wlists: Mutex<WordLists>,
+    pub(crate) flash: Mutex<flashcards::Progress>,
 }
 
 impl Library {
@@ -35,16 +37,17 @@ impl Library {
             notes: Mutex::new(store::load(&dir.join("notes.json"))),
             vlists: Mutex::new(store::load(&dir.join("verse-lists.json"))),
             wlists: Mutex::new(store::load(&dir.join("word-lists.json"))),
+            flash: Mutex::new(store::load(&dir.join("flashcards.json"))),
             dir,
         }
     }
 
-    fn save<T: Serialize>(&self, file: &str, value: &T) -> Result<(), String> {
+    pub(crate) fn save<T: Serialize>(&self, file: &str, value: &T) -> Result<(), String> {
         store::save(&self.dir.join(file), value).map_err(|e| format!("couldn't save {file}: {e}"))
     }
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 

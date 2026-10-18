@@ -28,6 +28,9 @@
     <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
     <span>Search or go to…</span><kbd>Ctrl K</kbd>
   </button>
+  <button id="studio-btn" class="icon-btn" aria-pressed="false" title="Study tools: flashcards, timeline, maps, diagrams" aria-label="Study tools">
+    <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="5.5" height="4.5" rx="1"/><rect x="9.5" y="9" width="4.5" height="4.5" rx="1"/></svg>
+  </button>
   <button id="theme-btn" class="icon-btn" aria-pressed="false" title="Dark mode" aria-label="Dark mode"></button>
   <button id="panel-btn" class="icon-btn" aria-pressed="false" title="Toggle side panel" aria-label="Toggle side panel">
     <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M10 3v10"/></svg>
@@ -55,6 +58,15 @@
   </aside>
 </main>
 
+<section id="studio" class="studio" aria-label="Study tools" hidden>
+  <div class="st-bar">
+    <div id="st-tabs" class="st-tabs" role="tablist" aria-label="Study tools"></div>
+    <div class="grow"></div>
+    <button id="st-close" class="btn ghost small" type="button">Back to reading <kbd>Esc</kbd></button>
+  </div>
+  <div id="st-body" class="st-body" role="tabpanel"></div>
+</section>
+
 <div id="nav" popover class="nav-pop" aria-label="Choose a passage">
   <div class="nav-books" id="nav-books" role="list"></div>
   <div class="nav-chapters">
@@ -78,5 +90,6 @@
 
 <script src="app.js"></script>
 <script src="library.js"></script>
+<script src="studio.js"></script>
 </body>
 </html>

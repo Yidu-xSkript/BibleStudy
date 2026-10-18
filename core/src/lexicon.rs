@@ -8,7 +8,7 @@
 //!     \x04 resets, `<<ref:BHS/GNT_1Jo 4:10$$1 John 4:10>>` links. Everything after the first NUL
 //!     is index data and is ignored.
 
-use crate::lexenc::{lex_greek, lex_hebrew_consonants, mc_consonants};
+use crate::lexenc::{lex_greek, lex_hebrew, lex_hebrew_consonants, mc_consonants};
 use std::{collections::HashMap, fs, io, path::Path};
 use unicode_normalization::UnicodeNormalization;
 
@@ -189,7 +189,7 @@ impl Strongs {
         for i in [guess, guess.saturating_sub(1), guess + 1] {
             if let Some((n, words, translit, pron, body)) = table.get(i).and_then(|t| strongs_header(&t)) {
                 if n == number {
-                    let word = if hebrew { String::new() } else { lex_greek(&words[0].1) };
+                    let word = if hebrew { words.iter().find(|(k, _)| *k == 'h').map(|(_, w)| lex_hebrew(w)).unwrap_or_default() } else { lex_greek(&words[0].1) };
                     return Some(StrongsEntry { number, hebrew, word, translit, pronunciation: pron, body });
                 }
             }
@@ -270,7 +270,7 @@ pub fn parse_spans(text: &str) -> Vec<Span> {
     let flush = |buf: &mut String, out: &mut Vec<Span>, b, i, g, h| {
         if !buf.is_empty() {
             let raw = std::mem::take(buf);
-            let text = if g { lex_greek(&raw) } else if h { lex_hebrew_consonants(&raw) } else { raw };
+            let text = if g { lex_greek(&raw) } else if h { lex_hebrew(&raw) } else { raw };
             if !text.is_empty() {
                 out.push(Span { text, bold: b, italic: i, greek: g, hebrew: h, link: None });
             }

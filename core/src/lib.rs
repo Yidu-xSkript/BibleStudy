@@ -1,4 +1,5 @@
 pub mod canon;
+pub mod flashcards;
 pub mod greek;
 pub mod hebrew;
 mod hebrew_table;
@@ -12,6 +13,7 @@ pub mod osearch;
 pub mod script;
 pub mod search;
 pub mod store;
+pub mod timeline;
 pub mod tsk;
 pub mod versification;
 pub mod vmap;

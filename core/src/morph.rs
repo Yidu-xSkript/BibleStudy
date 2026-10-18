@@ -9,12 +9,15 @@
 pub enum GreekScheme {
     BibleWorks,
     Modified,
+    /// Friberg's Analytical Greek New Testament (GNM): positional codes such as `viaa--3s`, `n-nm-s`.
+    Friberg,
 }
 
 pub fn greek_scheme(morph_id: &str) -> Option<GreekScheme> {
     match morph_id {
         "bnm" | "blm" | "bgm" => Some(GreekScheme::BibleWorks),
         "bym" | "scm" | "tim" | "stm" | "whm" => Some(GreekScheme::Modified),
+        "gnm" => Some(GreekScheme::Friberg),
         _ => None,
     }
 }
@@ -63,7 +66,99 @@ fn person(c: Option<char>) -> Option<&'static str> {
 
 /// Plain-language parsing of a Greek code, e.g. `viaa3s` -> "verb, indicative, aorist, active, 3rd person, singular".
 pub fn greek_parse(code: &str, scheme: GreekScheme) -> String {
+    if scheme == GreekScheme::Friberg {
+        return friberg_parse(code);
+    }
     code.split('/').map(|c| greek_one(c, scheme)).collect::<Vec<_>>().join(" or ")
+}
+
+const FR_MOOD: &[(char, &str)] = &[('i', "indicative"), ('s', "subjunctive"), ('o', "optative"), ('m', "imperative"), ('n', "infinitive"), ('p', "participle"), ('r', "participle (imperative sense)")];
+const FR_TENSE: &[(char, &str)] = &[('p', "present"), ('i', "imperfect"), ('f', "future"), ('a', "aorist"), ('r', "perfect"), ('l', "pluperfect")];
+const FR_ADJ: &[(char, &str)] = &[('c', "cardinal"), ('o', "ordinal"), ('r', "relative"), ('i', "indefinite"), ('t', "interrogative"), ('d', "demonstrative"), ('m', "comparative"), ('s', "superlative")];
+
+/// Friberg codes. Alternatives are joined by `/` ("or"), `!` (parsing depends on punctuation or accent),
+/// `&` (crasis) and `^` ("functions as"); a leading or trailing `+` marks a periphrastic or
+/// otherwise paired form and a leading `-` a relative pronoun without antecedent.
+pub fn friberg_parse(code: &str) -> String {
+    for (sep, word) in [('/', " or "), ('!', " or, depending on the accent or punctuation, "), ('&', " + "), ('^', ", functioning as ")] {
+        if code.contains(sep) {
+            return code.split(sep).map(friberg_parse).collect::<Vec<_>>().join(word);
+        }
+    }
+    let periphrastic = code.starts_with('+') || code.ends_with('+');
+    let no_antecedent = code.starts_with('-');
+    let body = code.trim_matches(|c| c == '+' || c == '-');
+    let cs: Vec<char> = body.chars().collect();
+    let at = |i: usize| cs.get(i).copied();
+    let mut parts: Vec<&str> = Vec::new();
+    let mut push = |v: Option<&'static str>| {
+        if let Some(v) = v {
+            parts.push(v)
+        }
+    };
+    let name = match at(0) {
+        Some('n') => {
+            push(pick(at(2), CASE));
+            push(pick(at(3), GENDER));
+            push(person(at(4)));
+            push(pick(at(5), NUMBER));
+            if at(1) == Some('p') { "pronoun" } else { "noun" }
+        }
+        Some('v') => {
+            push(pick(at(1), FR_MOOD));
+            push(pick(at(2), FR_TENSE));
+            push(pick(at(3), VOICE));
+            push(pick(at(4), CASE));
+            push(pick(at(5), GENDER));
+            push(person(at(6)));
+            push(pick(at(7), NUMBER));
+            "verb"
+        }
+        Some('a') => {
+            push(match at(1) {
+                Some('p') => Some("pronominal"),
+                Some('b') => Some("adverb"),
+                _ => None,
+            });
+            push(pick(at(2), FR_ADJ));
+            push(pick(at(3), CASE));
+            push(pick(at(4), GENDER));
+            push(person(at(5)));
+            push(pick(at(6), NUMBER));
+            "adjective"
+        }
+        Some('d') => {
+            push(pick(at(1), CASE));
+            push(pick(at(2), GENDER));
+            push(pick(at(3), NUMBER));
+            "article"
+        }
+        Some('p') => {
+            push(pick(at(1), &[('g', "with genitive"), ('d', "with dative"), ('a', "with accusative")]));
+            "preposition"
+        }
+        Some('c') => {
+            push(pick(at(1), &[('c', "coordinating"), ('h', "superordinating"), ('s', "subordinating")]));
+            "conjunction"
+        }
+        Some('q') => {
+            push(pick(at(1), &[('n', "negative"), ('s', "sentence"), ('t', "interrogative"), ('v', "verbal")]));
+            "particle"
+        }
+        _ => return code.to_string(),
+    };
+    let mut s = name.to_string();
+    for p in parts {
+        s.push_str(", ");
+        s.push_str(p);
+    }
+    if periphrastic {
+        s.push_str(" (periphrastic or paired form)");
+    }
+    if no_antecedent {
+        s.push_str(" (without antecedent)");
+    }
+    s
 }
 
 fn greek_one(code: &str, scheme: GreekScheme) -> String {
@@ -279,6 +374,44 @@ pub fn hebrew_parse(code: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn friberg_codes() {
+        let p = |c: &str| greek_parse(c, GreekScheme::Friberg);
+        assert_eq!(p("viaa--3s"), "verb, indicative, aorist, active, 3rd person, singular");
+        assert_eq!(p("vppanm-s"), "verb, participle, present, active, nominative, masculine, singular");
+        assert_eq!(p("vnaa"), "verb, infinitive, aorist, active");
+        assert_eq!(p("n-nm-s"), "noun, nominative, masculine, singular");
+        assert_eq!(p("npgm3s"), "pronoun, genitive, masculine, 3rd person, singular");
+        assert_eq!(p("a--nm-s"), "adjective, nominative, masculine, singular");
+        assert_eq!(p("ab"), "adjective, adverb");
+        assert_eq!(p("dnms"), "article, nominative, masculine, singular");
+        assert_eq!(p("pa"), "preposition, with accusative");
+        assert_eq!(p("cs"), "conjunction, subordinating");
+        assert_eq!(p("qn"), "particle, negative");
+        assert_eq!(p("n-nm-s/n-am-s"), "noun, nominative, masculine, singular or noun, accusative, masculine, singular");
+        assert!(p("+vppanm-s").ends_with("(periphrastic or paired form)"));
+        assert!(p("-npnm3s").ends_with("(without antecedent)"));
+        assert_eq!(greek_scheme("gnm"), Some(GreekScheme::Friberg));
+    }
+
+    /// Every code the Friberg module actually uses decodes to something other than the bare code.
+    #[test]
+    fn every_friberg_code_in_the_real_module_decodes() {
+        let Some(dir) = crate::install_dir() else { return };
+        let m = crate::module::Module::open(dir.join("databases/gnm.dbx")).unwrap();
+        let mut seen = std::collections::BTreeSet::new();
+        for i in 0..m.verse_count() {
+            for w in m.raw(i).unwrap().split_whitespace() {
+                if let Some(c) = morphemes(w).first().map(|x| x.code.clone()) {
+                    seen.insert(c);
+                }
+            }
+        }
+        let undecoded: Vec<&String> = seen.iter().filter(|c| friberg_parse(c) == **c).collect();
+        assert!(seen.len() > 1000);
+        assert!(undecoded.is_empty(), "{undecoded:?}");
+    }
 
     #[test]
     fn greek_codes() {

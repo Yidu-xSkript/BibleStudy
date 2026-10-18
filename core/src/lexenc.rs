@@ -149,6 +149,74 @@ pub fn lex_hebrew_consonants(s: &str) -> String {
     v.into_iter().collect::<String>().trim().to_string()
 }
 
+/// The vowel point a mark character stands for (marks follow their consonant in the visual string).
+fn hebrew_mark(c: char) -> Option<char> {
+    Some(match c {
+        ';' | ':' => '\u{5B8}',         // qamats
+        '\'' | '"' => '\u{5B7}',        // patach
+        ']' | '\u{d2}' => '\u{5B0}',    // sheva
+        'i' | 'I' => '\u{5B4}',         // hiriq
+        ',' | '<' => '\u{5B6}',         // segol
+        'e' | 'E' => '\u{5B5}',         // tsere
+        '}' => '\u{5B2}',               // hataf patach
+        '>' => '\u{5B1}',               // hataf segol
+        '?' => '\u{5B3}',               // hataf qamats
+        'o' | 'O' | '\u{bf}' => '\u{5B9}', // holam
+        'u' | 'U' => '\u{5BB}',         // qubuts
+        _ => return None,
+    })
+}
+
+/// Hebrew in lexicon encoding -> pointed Unicode in reading order. Marks only count directly after a
+/// consonant; capital letters carry a dagesh, `v`/`c` are shin/sin, `/` is vav with holam.
+pub fn lex_hebrew(s: &str) -> String {
+    let mut v: Vec<(char, String)> = Vec::new(); // (consonant or ' ', its points)
+    let mut open = false; // the last character was a consonant or a mark on one
+    for c in s.chars() {
+        if let Some(b) = hebrew_consonant(c) {
+            let mut pts = String::new();
+            if c.is_ascii_uppercase() && !matches!(c, 'A' | 'J') {
+                pts.push('\u{5BC}');
+            }
+            match c {
+                'v' | 'V' => pts.push('\u{5C1}'),
+                'c' | 'C' => pts.push('\u{5C2}'),
+                '/' => pts.push('\u{5B9}'),
+                _ => {}
+            }
+            v.push((b, pts));
+            open = true;
+        } else if c == ' ' {
+            v.push((' ', String::new()));
+            open = false;
+        } else if let (true, Some(m), Some(last)) = (open, hebrew_mark(c), v.last_mut()) {
+            last.1.push(m);
+        } else {
+            open = false;
+        }
+    }
+    finish_hebrew(v)
+}
+
+/// Visual-order (consonant, points) clusters -> reading-order Unicode with final letters at word ends.
+pub(crate) fn finish_hebrew(mut v: Vec<(char, String)>) -> String {
+    v.reverse();
+    let mut out = String::new();
+    for (i, (b, pts)) in v.iter().enumerate() {
+        let word_end = v.get(i + 1).map_or(true, |n| n.0 == ' ');
+        out.push(match (*b, word_end) {
+            ('כ', true) => 'ך',
+            ('מ', true) => 'ם',
+            ('נ', true) => 'ן',
+            ('פ', true) => 'ף',
+            ('צ', true) => 'ץ',
+            _ => *b,
+        });
+        out.push_str(pts);
+    }
+    out.trim().nfc().collect()
+}
+
 /// Consonant skeleton of a Westminster (Michigan-Claremont) lemma, same alphabet as above.
 pub fn mc_consonants(s: &str) -> String {
     s.chars()
@@ -209,5 +277,13 @@ mod tests {
         assert_eq!(lex_hebrew_consonants("tyviare"), "ראשית"); // re'shiyth
         assert_eq!(mc_consonants("R\")$IYT"), "ראשית");
         assert_eq!(mc_consonants("BR)"), "ברא");
+    }
+
+    #[test]
+    fn pointed_hebrew() {
+        assert_eq!(lex_hebrew("ba;"), nfc("אָב")); // 'av
+        assert_eq!(lex_hebrew("tyviare"), nfc("רֵאשִׁית")); // re'shiyth
+        assert_eq!(lex_hebrew("!Y:bia}"), nfc("אֲבִיָּם")); // 'Abiyam: dagesh and qamats on the yod
+        assert_eq!(lex_hebrew("ba; !a"), nfc("אם אָב")); // words stay separate; final mem at a word end
     }
 }
