@@ -516,7 +516,7 @@ fn main() {
             library::note_get, library::note_set, library::notes_all,
             library::vl_all, library::vl_get, library::vl_create, library::vl_rename, library::vl_delete, library::vl_add_span,
             library::vl_add_refs, library::vl_remove, library::vl_sort, library::vl_combine, library::vl_export, library::vl_import, library::vl_texts,
-            study::fc_decks, study::fc_open, study::fc_grade, study::fc_learned, study::fc_reset, study::tl_all,
+            study::fc_decks, study::fc_open, study::fc_grade, study::fc_learned, study::fc_reset, study::tl_all, study::map_catalog, study::map_view, study::map_render, study::map_vectors, study::map_find, study::dg_list, study::dg_open,
             library::tsk_get, library::tsk_texts, library::wl_generate, library::wl_all, library::wl_get, library::wl_save, library::wl_delete, library::wl_combine
         ])
         .run(tauri::generate_context!())

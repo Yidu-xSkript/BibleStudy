@@ -1,4 +1,5 @@
 pub mod canon;
+pub mod diagram;
 pub mod flashcards;
 pub mod greek;
 pub mod hebrew;
@@ -6,6 +7,7 @@ mod hebrew_table;
 pub mod lexenc;
 pub mod lexicon;
 pub mod lists;
+pub mod maps;
 pub mod module;
 pub mod morph;
 pub mod notes;

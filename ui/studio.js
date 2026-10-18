@@ -416,6 +416,7 @@ function drawTimeline(body) {
   layout();
   showDetail();
   if (TL.sel != null) select(TL.sel, true);
+  else if (tl.events.length) scroll.scrollLeft = Math.max(0, (astro(Math.min(...tl.events.map((e) => e.start))) - A0) * scale - 40); // start where the events do
 }
 
 STUDIO.tabs.push({ id: "time", label: "Timeline", render: renderTimeline });

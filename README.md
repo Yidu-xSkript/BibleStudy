@@ -8,9 +8,10 @@ A modern desktop Bible-study app in Rust, inspired by BibleWorks 8. It is a pers
 
 - **Read** English, Greek (Byzantine, NA27, LXX and others) and Hebrew (WTT, with optional cantillation), with verse-aligned side-by-side comparison across different versifications.
 - **Search** English, Greek and Hebrew (see below).
-- **Analyze** any Greek or Hebrew word: parsing, lemma, Strong's definition, and the full lexicons (Thayer, Friberg, Gingrich, Liddell-Scott, Louw-Nida, BDB, Holladay).
+- **Analyze** any Greek or Hebrew word: parsing (BibleWorks, Friberg and modified Greek schemes, Westminster Hebrew), lemma, Strong's definition, and the full lexicons (Thayer, Friberg, Gingrich, Liddell-Scott, Louw-Nida, BDB, Holladay).
 - **Cross-references** from the Treasury of Scripture Knowledge for any verse in any version (Refs tab): grouped by phrase, one click to follow, optional verse text in the version you are reading, chapter outlines, and "save as verse list".
 - **Notes** on verses and chapters, **verse lists** (with BibleWorks `.vls` import/export and list comparison) and **word lists** (frequency lists with part-of-speech filters).
+- **Study tools** (the grid button in the top bar): **flashcards** from the vocabulary decks in your BibleWorks install (Greek NT vocabulary, Mounce, Futato, Hebrew OT vocabulary, verb drills), with lessons, frequency filters, a spaced-repetition schedule and a browsable word list; the **timelines** (Bible, New Testament in detail, World history) with search, zoom and links to the passages; **maps** drawn from BibleWorks' map data (relief, satellite, elevation and land-cover bases, the saved views, route and site overlays, rivers and boundaries, place search, pan and zoom); and the **sentence diagrams** of the Greek New Testament plus the grammar examples, drawn as scalable graphics.
 - Light and dark themes.
 
 ## Search syntax
