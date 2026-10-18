@@ -9,6 +9,7 @@ A modern desktop Bible-study app in Rust, inspired by BibleWorks 8. It is a pers
 - **Read** English, Greek (Byzantine, NA27, LXX and others) and Hebrew (WTT, with optional cantillation), with verse-aligned side-by-side comparison across different versifications.
 - **Search** English, Greek and Hebrew (see below).
 - **Analyze** any Greek or Hebrew word: parsing, lemma, Strong's definition, and the full lexicons (Thayer, Friberg, Gingrich, Liddell-Scott, Louw-Nida, BDB, Holladay).
+- **Cross-references** from the Treasury of Scripture Knowledge for any verse in any version (Refs tab): grouped by phrase, one click to follow, optional verse text in the version you are reading, chapter outlines, and "save as verse list".
 - **Notes** on verses and chapters, **verse lists** (with BibleWorks `.vls` import/export and list comparison) and **word lists** (frequency lists with part-of-speech filters).
 - Light and dark themes.
 

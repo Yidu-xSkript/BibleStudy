@@ -123,9 +123,10 @@ async function notesBrowser() {
   return box;
 }
 
-/** Called by app.js when the chapter or the selected verse changes. */
+/** Called by app.js when the chapter or the selected verse changes: refresh whichever verse pane is showing. */
 function notesChanged() {
   if ($("#pane-notes") && !$("#pane-notes").hidden) renderNotes();
+  else if ($("#pane-refs") && !$("#pane-refs").hidden) renderRefs();
   else refreshNoteDot();
 }
 async function refreshNoteDot() {
@@ -379,4 +380,82 @@ function drawWords() {
     filter,
     rows.length ? list : note("No words match."),
   );
+}
+
+/* ═════════════════════════ cross-references (TSK) ═════════════════════════ */
+const R = { texts: store.get("refTexts", false) };
+let refsReq = 0;
+const short = (r) => `${r.code} ${r.chapter}:${r.verse}${r.end > r.verse ? "-" + r.end : ""}`;
+
+async function renderRefs() {
+  const pane = $("#pane-refs");
+  const mine = ++refsReq;
+  const code = S.books[S.book]?.code;
+  if (!code) return;
+  const verse = S.sel?.verse;
+  let r;
+  try { r = await invoke("tsk_get", { version: S.v1, code, chapter: S.chapter, verse: verse || 1 }); }
+  catch (e) { pane.replaceChildren(fail(e)); return; }
+  if (mine !== refsReq) return;
+
+  const parts = [];
+  // chapter outline (the Treasury keeps it on the chapter's first verse)
+  if (r.outline.length) {
+    const items = r.outline.map(([v, text]) => {
+      const b = el("button", { className: "outline-item", type: "button" }, el("b", { textContent: v }), el("span", { textContent: text }));
+      b.addEventListener("click", () => goTo(S.book, S.chapter, v));
+      return b;
+    });
+    parts.push(el("details", { className: "compare", open: !verse || verse === 1 }, el("summary", { textContent: "Chapter outline" }), el("div", { className: "outline" }, ...items)));
+  }
+  if (!verse) {
+    parts.push(el("div", { className: "panel-empty" }, el("strong", { textContent: "Select a verse" }), "Click a verse number to see its cross-references from the Treasury of Scripture Knowledge."));
+    pane.replaceChildren(...parts);
+    return;
+  }
+  parts.unshift(el("h3", { className: "note-title", textContent: `Cross-references · ${r.label}` }));
+  if (r.note) { parts.push(note(r.note)); pane.replaceChildren(...parts); return; }
+
+  const all = r.groups.flatMap((g) => g.refs);
+  const toggle = el("label", { className: "check" }, el("input", { type: "checkbox", checked: R.texts }), " Show verse text");
+  toggle.querySelector("input").addEventListener("change", (e) => { R.texts = e.target.checked; store.set("refTexts", R.texts); renderRefs(); });
+  const slot = el("div");
+  const save = el("button", { className: "btn small ghost", type: "button", textContent: "Save as verse list" });
+  save.addEventListener("click", () => slot.replaceChildren(inlineForm({
+    placeholder: "Name for the list", label: "Save list", value: `Cross-references of ${r.label}`, onCancel: () => slot.replaceChildren(),
+    onSubmit: async (name) => {
+      const refs = all.flatMap((x) => Array.from({ length: Math.min(x.end, x.verse + 39) - x.verse + 1 }, (_, i) => ({ ns: "kjv", code: x.code, chapter: x.chapter, verse: x.verse + i })));
+      try { L.vlist = await invoke("vl_create", { name, refs }); L.mode = "verses"; L.flash = `Saved ${refs.length} verses.`; selectTab("lists"); }
+      catch (e) { slot.replaceChildren(note(String(e))); }
+    },
+  })));
+  parts.push(el("div", { className: "toolbar" }, toggle, save), slot, el("p", { className: "sum", textContent: `${all.length} reference${all.length === 1 ? "" : "s"} in ${r.groups.length} group${r.groups.length === 1 ? "" : "s"}` }));
+
+  let texts = null;
+  if (R.texts && all.length) {
+    try { texts = await invoke("tsk_texts", { version: S.v1, refs: all.slice(0, 150).map(({ code, chapter, verse, end }) => ({ code, chapter, verse, end })) }); } catch { texts = null; }
+    if (mine !== refsReq) return;
+  }
+  let n = 0;
+  for (const g of r.groups) {
+    const sec = el("section", { className: "xgroup" });
+    if (g.phrase) sec.append(el("h4", { textContent: g.phrase }));
+    const chips = el("div", { className: "xrefs" });
+    for (const x of g.refs) {
+      const b = el("button", { className: "xref", type: "button", textContent: short(x), title: x.label });
+      b.addEventListener("click", () => goToCode(x.code, x.chapter, x.verse, "kjv"));
+      chips.append(b);
+    }
+    sec.append(chips);
+    if (texts) {
+      const rows = g.refs.map((x) => {
+        const t = texts[n++];
+        return t ? el("div", { className: "xtext" }, el("b", { textContent: x.label }), el("span", { textContent: " " + t })) : null;
+      }).filter(Boolean);
+      if (rows.length) sec.append(el("div", { className: "xtexts" }, ...rows));
+    } else n += g.refs.length;
+    parts.push(sec);
+  }
+  if (!r.groups.length) parts.push(note("No cross-references."));
+  pane.replaceChildren(...parts);
 }

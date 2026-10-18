@@ -12,6 +12,7 @@ pub mod osearch;
 pub mod script;
 pub mod search;
 pub mod store;
+pub mod tsk;
 pub mod versification;
 pub mod vmap;
 pub mod wordlist;

@@ -386,3 +386,19 @@ button.word:hover { color: var(--primary); text-decoration: underline; text-unde
 .count { text-align: end; font-variant-numeric: tabular-nums; font-size: var(--t-sm); color: var(--muted); }
 .wordrows .btn { margin: 0.5rem; }
 .list-body .sum { margin-top: 0.5rem; }
+
+/* ── cross-references ── */
+.check { display: inline-flex; align-items: center; gap: 0.4rem; margin-right: auto; font-size: var(--t-sm); cursor: pointer; }
+.check input { width: 1rem; height: 1rem; accent-color: var(--primary); }
+.outline { display: grid; margin-top: 0.4rem; }
+.outline-item { display: flex; gap: 0.6rem; padding: 0.3rem 0.4rem; border: 0; border-radius: 0.4rem; background: none; text-align: left; font-size: var(--t-sm); line-height: 1.45; }
+.outline-item:hover { background: var(--hover); }
+.outline-item b { min-width: 1.6rem; color: var(--primary); text-align: right; font-variant-numeric: tabular-nums; }
+.xgroup { margin: 0 0.5rem 0.9rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.xgroup h4 { margin: 0 0 0.4rem; font: italic 600 var(--t-ui) / 1.4 var(--read); }
+.xrefs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.xref { padding: 0.15rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); color: var(--primary); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.xref:hover { border-color: var(--primary); background: var(--tint); }
+.xtexts { margin-top: 0.5rem; display: grid; gap: 0.4rem; }
+.xtext { font: var(--t-ui) / 1.55 var(--read); }
+.xtext b { font: 600 var(--t-sm) var(--ui); color: var(--primary); }

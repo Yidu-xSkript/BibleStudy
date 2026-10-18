@@ -133,7 +133,7 @@ reader.addEventListener("click", (e) => {
   markSelection();
   renderWord();
   setPanel(true);
-  if ($("#tab-notes").getAttribute("aria-selected") === "true") notesChanged();
+  if ($("#tab-notes").getAttribute("aria-selected") === "true" || $("#tab-refs").getAttribute("aria-selected") === "true") notesChanged();
   else selectTab("word");
 });
 
@@ -350,7 +350,7 @@ function setPanel(open) {
   main.classList.toggle("with-panel", open);
   $("#panel-btn").setAttribute("aria-pressed", String(open));
 }
-const TABS = ["search", "word", "notes", "lists"];
+const TABS = ["search", "word", "refs", "notes", "lists"];
 function selectTab(name) {
   if (name !== "notes" && typeof flushNote === "function") flushNote().catch(() => {});
   for (const t of TABS) {
@@ -359,6 +359,7 @@ function selectTab(name) {
     $(`#tab-${t}`).tabIndex = on ? 0 : -1;
     $(`#pane-${t}`).hidden = !on;
   }
+  if (name === "refs" && typeof renderRefs === "function") renderRefs();
   if (name === "notes" && typeof renderNotes === "function") renderNotes();
   if (name === "lists" && typeof renderLists === "function") renderLists();
 }
@@ -366,6 +367,7 @@ $("#panel-btn").addEventListener("click", () => setPanel(panel.hidden));
 $("#panel-close").addEventListener("click", () => setPanel(false));
 $("#tab-search").addEventListener("click", () => selectTab("search"));
 $("#tab-word").addEventListener("click", () => selectTab("word"));
+$("#tab-refs").addEventListener("click", () => selectTab("refs"));
 $("#tab-notes").addEventListener("click", () => selectTab("notes"));
 $("#tab-lists").addEventListener("click", () => selectTab("lists"));
 $(".tabs").addEventListener("keydown", (e) => {

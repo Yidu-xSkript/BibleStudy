@@ -9,6 +9,7 @@ use bible_study_core::{
     notes::{self, Notes},
     script::{self, Script},
     store,
+    tsk::TskRef,
     vmap::map_verse,
     wordlist::{self, WordEntry, WordList, WordLists},
 };
@@ -275,30 +276,90 @@ pub fn vl_import(app: State<App>, text: String, name: Option<String>) -> Result<
     })
 }
 
+/// Plain text of one verse (given in `ns`'s numbering) as it reads in the version `tm`/`tv`, mapped through the verse maps.
+fn text_in(app: &App, tm: &bible_study_core::module::Module, tv: &bible_study_core::vmap::Vmap, sc: Script, ns: &str, code: &str, chapter: usize, verse: usize) -> String {
+    (|| {
+        let fm = app.module(ns).ok()?;
+        let fv = app.vmap(ns);
+        let idx = map_verse((&fv, &fm.vers), (tv, &tm.vers), &(code.to_string(), chapter, verse));
+        let parts: Vec<String> = idx
+            .into_iter()
+            .filter_map(|i| {
+                let raw = tm.raw(i)?;
+                Some(if sc == Script::Latin { tokens(&raw).into_iter().map(|t| t.text).collect::<String>() } else { raw.split_whitespace().map(|w| script::decode(sc, w, false)).collect::<Vec<_>>().join(" ") })
+            })
+            .collect();
+        Some(parts.join(" ").trim().to_string())
+    })()
+    .unwrap_or_default()
+}
+
 /// Text of each reference in `version`, mapped from the reference's own numbering. Long lists are cut off.
 #[tauri::command]
 pub async fn vl_texts(app: State<'_, App>, id: String, version: String) -> Result<Vec<String>, String> {
     const MAX: usize = 300;
     let refs = app.library.vlists.lock().unwrap().lists.iter().find(|l| l.id == id).map(|l| l.refs.clone()).ok_or("no such list")?;
     let (tm, tv, sc) = (app.module(&version)?, app.vmap(&version), app.script(&version));
-    let mut out = Vec::new();
-    for r in refs.iter().take(MAX) {
-        let text = (|| {
-            let fm = app.module(&r.ns).ok()?;
-            let fv = app.vmap(&r.ns);
-            let idx = map_verse((&fv, &fm.vers), (&tv, &tm.vers), &(r.code.clone(), r.chapter, r.verse));
-            let parts: Vec<String> = idx
-                .into_iter()
-                .filter_map(|i| {
-                    let raw = tm.raw(i)?;
-                    Some(if sc == Script::Latin { tokens(&raw).into_iter().map(|t| t.text).collect::<String>() } else { raw.split_whitespace().map(|w| script::decode(sc, w, false)).collect::<Vec<_>>().join(" ") })
-                })
-                .collect();
-            Some(parts.join(" ").trim().to_string())
-        })();
-        out.push(text.unwrap_or_default());
+    Ok(refs.iter().take(MAX).map(|r| text_in(&app, &tm, &tv, sc, &r.ns, &r.code, r.chapter, r.verse)).collect())
+}
+
+// ---------------------------------------------------------------- cross-references (TSK)
+
+#[derive(Serialize)]
+pub struct TskRefOut {
+    #[serde(flatten)]
+    r: TskRef,
+    /// "Romans 5:8" / "John 1:1-3"
+    label: String,
+}
+
+#[derive(Serialize)]
+pub struct TskGroupOut {
+    phrase: String,
+    refs: Vec<TskRefOut>,
+}
+
+#[derive(Serialize)]
+pub struct TskOut {
+    /// The verse these belong to, in KJV numbering ("John 3:16").
+    label: String,
+    outline: Vec<(usize, String)>,
+    groups: Vec<TskGroupOut>,
+    /// Why there is nothing to show, when there isn't.
+    note: Option<String>,
+}
+
+fn tsk_label(r: &TskRef) -> String {
+    let end = if r.end > r.verse { format!("-{}", r.end) } else { String::new() };
+    format!("{} {}:{}{}", book_name(&r.code), r.chapter, r.verse, end)
+}
+
+/// Cross-references for a verse of `version` (any numbering: it is mapped to the KJV's, which TSK uses).
+#[tauri::command]
+pub async fn tsk_get(app: State<'_, App>, version: String, code: String, chapter: usize, verse: usize) -> Result<TskOut, String> {
+    let (ns, kcode, kch, kv) = app.canonical(&version, &code, chapter, verse);
+    let label = format!("{} {}:{}", book_name(&kcode), kch, kv);
+    let empty = |note: &str| TskOut { label: label.clone(), outline: vec![], groups: vec![], note: Some(note.to_string()) };
+    if ns != "kjv" {
+        return Ok(empty("The Treasury is organised by KJV verses, and this verse has no KJV counterpart."));
     }
-    Ok(out)
+    let tsk = app.tsk()?;
+    let outline = tsk.outline(&kcode, kch);
+    let Some(e) = tsk.entry(&kcode, kch, kv) else {
+        return Ok(TskOut { outline, ..empty("The Treasury has no cross-references for this verse.") });
+    };
+    let groups = e.groups.into_iter().map(|g| TskGroupOut { phrase: g.phrase, refs: g.refs.into_iter().map(|r| TskRefOut { label: tsk_label(&r), r }).collect() }).collect();
+    Ok(TskOut { label, outline, groups, note: None })
+}
+
+/// The text of KJV-numbered references as they read in `version` (ranges are capped at ten verses).
+#[tauri::command]
+pub async fn tsk_texts(app: State<'_, App>, version: String, refs: Vec<TskRef>) -> Result<Vec<String>, String> {
+    let (tm, tv, sc) = (app.module(&version)?, app.vmap(&version), app.script(&version));
+    Ok(refs
+        .iter()
+        .map(|r| (r.verse..=r.end.min(r.verse + 9)).map(|v| text_in(&app, &tm, &tv, sc, "kjv", &r.code, r.chapter, v)).filter(|t| !t.is_empty()).collect::<Vec<_>>().join(" "))
+        .collect())
 }
 
 // ---------------------------------------------------------------- word lists

@@ -46,6 +46,20 @@ impl Table {
         u32::from_le_bytes(self.data[p..p + 4].try_into().unwrap()) as usize
     }
 
+    /// Entry `i` of a table where unused slots have offset 0 (e.g. verses with no TSK entry).
+    /// An entry runs to the next real offset, not to the next slot. `None` for an unused slot.
+    pub fn get_sparse(&self, i: usize) -> Option<String> {
+        let first = 4 + (self.n + 1) * 4;
+        let start = self.off(i.min(self.n));
+        if i >= self.n || start < first {
+            return None;
+        }
+        let end = (i + 1..=self.n).map(|j| self.off(j)).find(|&o| o >= first && o > start).unwrap_or(self.data.len()).min(self.data.len());
+        let b = self.data.get(start..end)?;
+        let b = &b[..b.iter().position(|&c| c == 0).unwrap_or(b.len())];
+        Some(b.iter().map(|&c| c as char).collect())
+    }
+
     /// Entry `i` as Latin-1 text, cut at the first NUL.
     pub fn get(&self, i: usize) -> Option<String> {
         if i >= self.n {

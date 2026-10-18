@@ -129,6 +129,10 @@ fn is_strongs(s: &str) -> bool {
 
 /// Append display text, normalising the gaps that removed tags leave behind.
 fn push_text(out: &mut Vec<Token>, mut s: &str) {
+    if s.contains('>') {
+        // real tags are consumed whole, so a `>` that reaches here is damage in the module
+        return push_text(out, &s.replace('>', ""));
+    }
     if let Some(last) = out.last_mut() {
         if last.text.ends_with(char::is_whitespace) {
             if s.starts_with(char::is_whitespace) {
@@ -170,14 +174,21 @@ pub fn tokens(raw: &str) -> Vec<Token> {
                 continue;
             }
         };
-        let Some(rel) = raw[i + 1..].find(close) else {
+        // `<...>` tags may nest in damaged text (`<N<N2> 1>`), so match them by depth.
+        let rel = if b[i] == b'<' { tag_end(&raw[i + 1..]) } else { raw[i + 1..].find(close) };
+        let Some(rel) = rel else {
             i += 1;
             continue;
         };
         let inner = &raw[i + 1..i + 1 + rel];
         let numeric = !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit());
         if b[i] == b'(' && !numeric {
-            push_text(&mut out, &raw[start..i + rel + 2]); // ordinary parenthetical
+            // An ordinary parenthesis: keep just the bracket and carry on, so tags inside the
+            // parenthetical ("(I speak <3004> (5719) as a man)") are still read.
+            push_text(&mut out, &raw[start..i + 1]);
+            i += 1;
+            start = i;
+            continue;
         } else {
             push_text(&mut out, &raw[start..i]);
             match b[i] {
@@ -195,6 +206,24 @@ pub fn tokens(raw: &str) -> Vec<Token> {
     }
     push_text(&mut out, &raw[start..]);
     out
+}
+
+/// Offset of the `>` that closes a tag whose `<` came just before `s`, counting nested `<`.
+fn tag_end(s: &str) -> Option<usize> {
+    let mut depth = 1;
+    for (k, c) in s.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(k);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn attach_strongs(out: &mut Vec<Token>, num: &str) {
@@ -239,6 +268,34 @@ mod tests {
         assert_eq!(words, [("beginning", "07225"), ("God", "0430"), ("created", "01254"), ("heaven", "08064")]);
         assert_eq!(t.iter().find(|t| t.text == "created").unwrap().morph.as_deref(), Some("08804"));
         assert_eq!(plain("In the beginning <07225> God <0430>, {note} and (see) <Ra>all."), "In the beginning God, and (see) all.");
+    }
+
+    #[test]
+    fn nested_tags_in_damaged_text() {
+        assert_eq!(plain("of land<N<N2> 1> <07704>. more"), "of land. more");
+        assert_eq!(plain("a < b and <0430> God"), "a < b and God"); // a lone `<` is just text
+        assert_eq!(plain("<<kill him.> <04191> (08687)>> Deliver"), "kill him. Deliver"); // a stray `>` is dropped
+    }
+
+    #[test]
+    fn tags_inside_a_parenthesis_are_still_read() {
+        assert_eq!(plain("(I speak <3004> (5719) as a man) and <2532> more (see) ok"), "(I speak as a man) and more (see) ok");
+        let t = tokens("(I speak <3004> (5719) as a man)");
+        let speak = t.iter().find(|t| t.text == "speak").unwrap();
+        assert_eq!((speak.strongs.as_deref(), speak.morph.as_deref()), (Some("3004"), Some("5719")));
+    }
+
+    /// No tag fragments may leak into displayed text, in any verse of the tagged English versions.
+    #[test]
+    fn no_tag_fragments_leak_into_display_text() {
+        let Some(dir) = crate::install_dir() else { return };
+        for id in ["kjv", "nkj", "nas", "nau", "rwb", "kjg"] {
+            let Ok(m) = Module::open(dir.join(format!("databases/{id}.dbx"))) else { continue };
+            for i in 0..m.verse_count() {
+                let text = plain(&m.raw(i).unwrap());
+                assert!(!text.contains(['<', '>']), "{id} verse {i}: {text}");
+            }
+        }
     }
 
     #[test]

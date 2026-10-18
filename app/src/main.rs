@@ -45,6 +45,7 @@ struct App {
     cache: Mutex<HashMap<String, Arc<Module>>>,
     vmaps: Mutex<HashMap<String, Arc<Vmap>>>,
     strongs: Mutex<Option<Arc<Strongs>>>,
+    tsk: Mutex<Option<Arc<bible_study_core::tsk::Tsk>>>,
     lexicons: Mutex<HashMap<String, Arc<Lexicon>>>,
     library: library::Library,
     /// Folded-word indexes for Greek/Hebrew search, built the first time a version is searched.
@@ -78,6 +79,17 @@ impl App {
         let idx = Arc::new(osearch::Index::build(&text, self.script(version), morph.as_deref()));
         self.oindex.lock().unwrap().insert(version.to_string(), idx.clone());
         Ok(idx)
+    }
+
+    fn tsk(&self) -> Result<Arc<bible_study_core::tsk::Tsk>, String> {
+        let mut slot = self.tsk.lock().unwrap();
+        if let Some(t) = slot.as_ref() {
+            return Ok(t.clone());
+        }
+        let dir = self.dir.as_ref().ok_or("BibleWorks not found")?;
+        let t = Arc::new(bible_study_core::tsk::Tsk::open(&dir.join("databases")).map_err(|e| format!("tskdic: {e}"))?);
+        *slot = Some(t.clone());
+        Ok(t)
     }
 
     fn strongs(&self) -> Result<Arc<Strongs>, String> {
@@ -496,13 +508,13 @@ fn main() {
     let dir = install_dir();
     let versions = discover(&dir);
     tauri::Builder::default()
-        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()), oindex: Mutex::new(HashMap::new()) })
+        .manage(App { dir, versions, cache: Mutex::new(HashMap::new()), vmaps: Mutex::new(HashMap::new()), strongs: Mutex::new(None), tsk: Mutex::new(None), lexicons: Mutex::new(HashMap::new()), library: library::Library::open(data_dir()), oindex: Mutex::new(HashMap::new()) })
         .invoke_handler(tauri::generate_handler![
             status, books, goto, convert, chapter, find, word_info, strongs_info, lookup, font,
             library::note_get, library::note_set, library::notes_all,
             library::vl_all, library::vl_get, library::vl_create, library::vl_rename, library::vl_delete, library::vl_add_span,
             library::vl_add_refs, library::vl_remove, library::vl_sort, library::vl_combine, library::vl_export, library::vl_import, library::vl_texts,
-            library::wl_generate, library::wl_all, library::wl_get, library::wl_save, library::wl_delete, library::wl_combine
+            library::tsk_get, library::tsk_texts, library::wl_generate, library::wl_all, library::wl_get, library::wl_save, library::wl_delete, library::wl_combine
         ])
         .run(tauri::generate_context!())
         .expect("error while running Bible Study");
