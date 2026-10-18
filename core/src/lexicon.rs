@@ -102,23 +102,25 @@ pub struct Strongs {
 
 /// The `\G<word>\n` / `\h<word>\n` tags on a Strong's header line. A tag starts after whitespace and
 /// ends at the first `\n` that is followed by whitespace (a mark `\` can precede the letter `n`).
-fn header_words(line: &str) -> Vec<(char, String)> {
-    let mut out = Vec::new();
+fn header_words(line: &str) -> (Vec<(char, String)>, String) {
+    let (mut out, mut plain) = (Vec::new(), String::new());
     let b: Vec<char> = line.chars().collect();
     let mut i = 0;
-    while i + 1 < b.len() {
-        if b[i] == '\\' && (b[i + 1] == 'G' || b[i + 1] == 'h') && (i == 0 || b[i - 1].is_whitespace()) {
+    while i < b.len() {
+        if i + 1 < b.len() && b[i] == '\\' && (b[i + 1] == 'G' || b[i + 1] == 'h') && (i == 0 || b[i - 1].is_whitespace()) {
             let mut j = i + 2;
             while j + 1 < b.len() && !(b[j] == '\\' && b[j + 1] == 'n' && b.get(j + 2).map_or(true, |c| c.is_whitespace())) {
                 j += 1;
             }
             out.push((b[i + 1], b[i + 2..j.min(b.len())].iter().collect()));
             i = j + 2;
+            plain.push(' ');
         } else {
+            plain.push(b[i]);
             i += 1;
         }
     }
-    out
+    (out, plain)
 }
 
 /// (number, words, transliteration, pronunciation, body) of a Strong's entry.
@@ -128,19 +130,27 @@ fn strongs_header(text: &str) -> Option<(u32, Vec<(char, String)>, String, Strin
     let head = lines.next()?.trim();
     let (num, rest) = head.split_once(' ')?;
     let number: u32 = num.trim().parse().ok()?;
-    let words = header_words(rest);
+    let (words, plain) = header_words(rest);
     if words.is_empty() {
         return None;
     }
-    // Transliteration and pronunciation of the first word follow its terminator.
-    let after = rest.find(words[0].1.as_str()).map_or("", |p| &rest[p + words[0].1.len()..]);
-    let after = after.trim_start_matches("\\n").trim_start();
+    // Once the tags are gone the line starts with the transliteration and pronunciation of the first word.
+    let after = plain.trim();
     let first = after.split(" or ").next().unwrap_or(after);
     let (translit, pron) = match first.find('{') {
         Some(p) => (first[..p].trim().to_string(), first[p + 1..].split('}').next().unwrap_or("").trim().to_string()),
         None => (first.trim().to_string(), String::new()),
     };
-    let body: Vec<&str> = lines.collect();
+    let mut body: Vec<&str> = lines.collect();
+    // A long header wraps: the pronunciation can start the next line.
+    let pron = match (pron.is_empty(), body.first().map(|l| l.trim())) {
+        (true, Some(l)) if l.starts_with('{') => {
+            let p = l.trim_start_matches('{').split('}').next().unwrap_or("").trim().to_string();
+            body.remove(0);
+            p
+        }
+        _ => pron,
+    };
     Some((number, words, translit, pron, body.join("\n").trim().to_string()))
 }
 
@@ -454,6 +464,10 @@ mod tests {
         let t = "03767\r\n  3767 \\Gou\\n\\n oun {oon}\r\n";
         assert_eq!(strongs_header(t).unwrap().1, vec![('G', "ou\\n".to_string())]);
         assert_eq!(lex_greek("ou\\n"), "οὖν");
+        // a phrase entry has several tagged words; none of them may leak into the transliteration
+        let t = "03801\r\n  3801 \\GoJ\\n \\Gw]n\\n \\Gkai;\\n ho on kai {ho own kahee}\r\n";
+        let (_, w, tr, p, _) = strongs_header(t).unwrap();
+        assert_eq!((w.len(), tr.as_str(), p.as_str()), (3, "ho on kai", "ho own kahee"));
         // alternate words follow " or "
         let t = "03475\r\n  3475 \\GMwseu'\"\\n Moseus {moce-yoos'} or \\GMwsh'\"\\n Moses {mo-sace'}\r\n";
         let w = strongs_header(t).unwrap().1;

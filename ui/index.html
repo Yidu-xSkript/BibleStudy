@@ -10,12 +10,13 @@
 </head>
 <body>
 <header class="bar">
-  <h1 class="loc">
+  <h1 class="loc" id="loc">
     <button id="nav-btn" class="loc-btn" popovertarget="nav" aria-haspopup="dialog">
       <span id="title">Bible Study</span>
       <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
     </button>
   </h1>
+  <h1 id="studio-title" class="loc-btn studio-title" hidden>Study tools</h1>
   <div class="steps" role="group" aria-label="Chapter">
     <button id="prev" class="icon-btn" title="Previous chapter ( [ )" aria-label="Previous chapter"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
     <button id="next" class="icon-btn" title="Next chapter ( ] )" aria-label="Next chapter"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
@@ -28,8 +29,9 @@
     <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
     <span>Search or go to…</span><kbd>Ctrl K</kbd>
   </button>
-  <button id="studio-btn" class="icon-btn" aria-pressed="false" title="Study tools: flashcards, timeline, maps, diagrams" aria-label="Study tools">
+  <button id="studio-btn" class="tool-btn" aria-pressed="false" title="Flashcards, timeline, maps and sentence diagrams">
     <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="5.5" height="4.5" rx="1"/><rect x="9.5" y="9" width="4.5" height="4.5" rx="1"/></svg>
+    <span>Study</span>
   </button>
   <button id="theme-btn" class="icon-btn" aria-pressed="false" title="Dark mode" aria-label="Dark mode"></button>
   <button id="panel-btn" class="icon-btn" aria-pressed="false" title="Toggle side panel" aria-label="Toggle side panel">

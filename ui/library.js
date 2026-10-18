@@ -29,6 +29,19 @@ function segmented(options, current, onPick, label) {
   }));
 }
 
+/** Two-step button for destructive actions: the first click asks, a second within 4s does it. */
+function confirmClick(btn, ask, action) {
+  const text = btn.textContent;
+  let armed = false, timer;
+  const reset = () => { armed = false; btn.textContent = text; btn.classList.remove("armed"); };
+  btn.addEventListener("click", () => {
+    if (!armed) { armed = true; btn.textContent = ask; btn.classList.add("armed"); timer = setTimeout(reset, 4000); return; }
+    clearTimeout(timer);
+    reset();
+    action();
+  });
+}
+
 const note = (text) => el("p", { className: "muted pad", textContent: text });
 const fail = (e) => note(String(e));
 
@@ -211,12 +224,7 @@ async function renderVerseLists(body) {
   const exportBtn = el("button", { className: "btn small ghost", type: "button", textContent: "Export" });
   exportBtn.addEventListener("click", async () => { const [name, text] = await invoke("vl_export", { id: list.id }); download(`${safeName(name)}.vls`, text); });
   const del = el("button", { className: "btn small ghost danger", type: "button", textContent: "Delete" });
-  del.addEventListener("click", () => {
-    del.textContent = "Delete this list?";
-    del.classList.add("armed");
-    del.onclick = async () => { await invoke("vl_delete", { id: list.id }); L.vlist = ""; reload(); };
-    setTimeout(() => { if (del.isConnected) { del.textContent = "Delete"; del.classList.remove("armed"); del.onclick = null; } }, 4000);
-  });
+  confirmClick(del, "Delete this list?", async () => { await invoke("vl_delete", { id: list.id }); L.vlist = ""; reload(); });
   body.append(el("div", { className: "toolbar" }, rename, sort, exportBtn, del));
 
   // entries
@@ -362,7 +370,7 @@ function drawWords() {
   const exp = el("button", { className: "btn small ghost", type: "button", textContent: "Export CSV" });
   exp.addEventListener("click", () => download(`${safeName(w.name || w.source)}.csv`, "﻿word,count\r\n" + w.entries.map((e) => `"${e.word.replace(/"/g, '""')}",${e.count}`).join("\r\n") + "\r\n", "text/csv"));
   const del = w.id ? el("button", { className: "btn small ghost danger", type: "button", textContent: "Delete" }) : null;
-  if (del) del.addEventListener("click", async () => { await invoke("wl_delete", { id: w.id }); L.words = null; L.wlist = ""; renderLists(); });
+  if (del) confirmClick(del, "Delete this list?", async () => { await invoke("wl_delete", { id: w.id }); L.words = null; L.wlist = ""; renderLists(); });
 
   const list = el("div", { className: "wordrows", role: "list" });
   rows.slice(0, L.wshown).forEach((e) => {

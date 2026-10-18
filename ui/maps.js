@@ -14,6 +14,7 @@ const MP = {
   timer: null,
 };
 const MAP_STYLES = [["relief", "Relief"], ["satellite", "Satellite"], ["elevation", "Elevation"], ["landcover", "Land cover"]];
+const cleanLabel = (s) => s.replace(/\s+vector overlay$/i, "");
 const svgIcon = (d) => svg("svg", { class: "ico", viewBox: "0 0 16 16", "aria-hidden": "true" }, svg("path", { d }));
 
 async function renderMaps(body) {
@@ -81,8 +82,8 @@ function drawMaps(body) {
     overlayBox.replaceChildren(...MP.overlays.map((id) => {
       const o = byId.get(id);
       return el("div", { className: "map-ov" },
-        el("span", { textContent: o?.label || id }),
-        el("button", { className: "icon-btn", type: "button", title: "Remove", ariaLabel: `Remove ${o?.label || id}`, onclick: () => { MP.overlays = MP.overlays.filter((x) => x !== id); persist(); drawOverlayList(); paint(); } }, svgIcon("m4 4 8 8M12 4l-8 8")));
+        el("span", { textContent: cleanLabel(o?.label || id) }),
+        el("button", { className: "icon-btn", type: "button", title: "Remove", ariaLabel: `Remove ${cleanLabel(o?.label || id)}`, onclick: () => { MP.overlays = MP.overlays.filter((x) => x !== id); persist(); drawOverlayList(); paint(); } }, svgIcon("m4 4 8 8M12 4l-8 8")));
     }));
     if (!MP.overlays.length) overlayBox.append(el("p", { className: "muted map-none", textContent: "No overlays. Add routes, sites, rivers or boundaries below." }));
     addSel.replaceChildren(el("option", { value: "", textContent: "Add an overlay…" }));
@@ -91,7 +92,7 @@ function drawMaps(body) {
       if (MP.overlays.includes(o.id)) continue;
       const g = o.group.join(" › ") || (o.kind === "lines" ? "Lines" : "Other");
       if (!og.has(g)) og.set(g, el("optgroup", { label: g }));
-      og.get(g).append(el("option", { value: o.id, textContent: o.label || o.id }));
+      og.get(g).append(el("option", { value: o.id, textContent: cleanLabel(o.label || o.id) }));
     }
     addSel.append(...og.values());
   }

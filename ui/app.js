@@ -454,6 +454,20 @@ let items = [], active = 0, pending = 0;
 const ICON = {
   go: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z"/><path d="M5.5 13.5v-3"/></svg>',
   search: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
+  cmd: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="5.5" height="4.5" rx="1"/><rect x="9.5" y="9" width="4.5" height="4.5" rx="1"/></svg>',
+};
+/** Things the palette can do besides go and search. `studio` is defined in studio.js, which loads later. */
+const COMMANDS = [
+  { label: "Open flashcards", words: "flashcards cards vocabulary drill study", run: () => openStudio("cards") },
+  { label: "Open timeline", words: "timeline history dates events", run: () => openStudio("time") },
+  { label: "Open maps", words: "maps atlas places geography", run: () => openStudio("maps") },
+  { label: "Open sentence diagrams", words: "diagrams sentence grammar syntax", run: () => openStudio("diagrams") },
+  { label: "Toggle dark mode", words: "dark light theme mode", run: () => $("#theme-btn").click() },
+  { label: "Toggle side panel", words: "panel sidebar analysis", run: () => $("#panel-btn").click() },
+];
+const commandsFor = (text) => {
+  const t = text.toLowerCase();
+  return COMMANDS.filter((c) => !t || c.label.toLowerCase().includes(t) || c.words.split(" ").some((w) => w.startsWith(t))).map((c) => ({ kind: "cmd", cmd: c, label: c.label, note: "Command" }));
 };
 function drawResults() {
   results.replaceChildren(...items.map((it, i) => {
@@ -472,6 +486,7 @@ async function refresh() {
   const next = [];
   if (!text) {
     store.get("history", []).forEach((h) => next.push({ kind: "search", query: h, label: h, note: "Recent" }));
+    next.push(...commandsFor("").slice(0, 4));
   } else {
     const ref = /["*@]|^[hg]\d|^[/'.]/i.test(text) ? null : await invoke("goto", { version: S.v1, text });
     if (mine !== pending) return;
@@ -480,6 +495,7 @@ async function refresh() {
       next.push({ kind: "go", ref, verse, label: `Go to ${label(ref[0], ref[1], verse)}` });
     }
     next.push({ kind: "search", query: text, label: `Search ${S.v1.toUpperCase()} for “${text}”` });
+    if (text.length > 1 && !/["*@]/.test(text)) next.push(...commandsFor(text));
   }
   items = next;
   active = 0;
@@ -488,6 +504,7 @@ async function refresh() {
 function run(it) {
   dlg.close();
   if (it.kind === "go") goTo(it.ref[0], it.ref[1], it.verse);
+  else if (it.kind === "cmd") it.cmd.run();
   else runSearch(it.query);
 }
 const KEYS = { greek: [..."αβγδεζηθικλμνξοπρστυφχψω"], hebrew: [..."אבגדהוזחטיכלמנסעפצקרשת"] };
@@ -538,6 +555,10 @@ document.addEventListener("keydown", (e) => {
   else if (!typing && !dlg.open && e.key === "/") { e.preventDefault(); openPalette(); }
   else if (!typing && !dlg.open && e.key === "[") step("prev");
   else if (!typing && !dlg.open && e.key === "]") step("next");
+  else if (e.key === "Escape" && !dlg.open && !panel.hidden && !document.body.classList.contains("studio-open") && !e.defaultPrevented) {
+    if (typing) document.activeElement.blur();
+    else setPanel(false);
+  }
 });
 
 /* ── versions ── */

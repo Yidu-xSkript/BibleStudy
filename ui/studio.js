@@ -9,6 +9,8 @@ function openStudio(tab) {
   if (tab) STUDIO.current = tab;
   if (!STUDIO.tabs.some((t) => t.id === STUDIO.current)) STUDIO.current = STUDIO.tabs[0].id;
   document.body.classList.add("studio-open");
+  $("#loc").hidden = true;
+  $("#studio-title").hidden = false;
   studio.hidden = false;
   $("#studio-btn").setAttribute("aria-pressed", "true");
   drawStudio();
@@ -18,6 +20,8 @@ function closeStudio() {
   STUDIO.cleanup?.();
   STUDIO.cleanup = null;
   document.body.classList.remove("studio-open");
+  $("#loc").hidden = false;
+  $("#studio-title").hidden = true;
   studio.hidden = true;
   $("#studio-btn").setAttribute("aria-pressed", "false");
   reader.focus({ preventScroll: true });
@@ -52,8 +56,16 @@ function drawStudio() {
 $("#studio-btn").addEventListener("click", () => (studio.hidden ? openStudio() : closeStudio()));
 $("#st-close").addEventListener("click", closeStudio);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !studio.hidden && !document.querySelector("dialog[open]") && !e.defaultPrevented) closeStudio();
+  if (e.key !== "Escape" || studio.hidden || document.querySelector("dialog[open]") || e.defaultPrevented) return;
+  const f = document.activeElement;
+  if (f?.matches?.("input, select, textarea") && studio.contains(f)) { // Esc leaves a field before it leaves the tools
+    if (f.value && f.type === "search") { f.value = ""; f.dispatchEvent(new Event("input")); }
+    else f.blur();
+    return;
+  }
+  closeStudio();
 });
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const plural = (n, one, many = one + "s") => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const fieldRow = (label, input) => el("label", { className: "st-field" }, el("span", { textContent: label }), input);
@@ -131,11 +143,7 @@ function fcSetup(body) {
   const go = el("button", { className: "btn big", type: "button", textContent: o.queue.length ? `Study ${plural(o.queue.length, "card")}` : "Nothing to study", disabled: !o.queue.length });
   go.addEventListener("click", () => fcStart(body));
   const reset = el("button", { className: "btn ghost small", type: "button", textContent: "Reset progress", disabled: st.new === st.total });
-  reset.addEventListener("click", async () => {
-    if (reset.dataset.sure !== "1") { reset.dataset.sure = "1"; reset.textContent = "Click again to forget all progress"; return; }
-    await invoke("fc_reset", { deck: FC.deck });
-    refresh();
-  });
+  confirmClick(reset, "Forget all progress?", async () => { await invoke("fc_reset", { deck: FC.deck }); refresh(); });
   const browse = el("button", { className: "btn ghost", type: "button", textContent: "Browse cards", onclick: () => { FC.view = "browse"; drawCards(body); } });
 
   body.append(el("div", { className: "st-col" },
@@ -192,7 +200,7 @@ function fcRun(body) {
     flipped ? cardFace(card, second, o.hebrew) : "",
     flipped ? el("p", { className: "fc-meta muted", textContent: [card.lesson ? `Lesson ${card.lesson}` : "", card.count ? `${plural(card.count, "occurrence")}` : ""].filter(Boolean).join(" · ") }) : "");
   const learned = r.learned.has(card.id) || (card.level ?? 0) >= 3;
-  const bar = el("div", { className: "fc-progress", role: "progressbar", ariaValueMin: 0, ariaValueMax: r.order.length, ariaValueNow: r.pos, ariaLabel: "Session progress" }, el("i", { style: `width:${(r.pos / r.order.length) * 100}%` }));
+  const bar = el("div", { className: "fc-progress", role: "progressbar", ariaValueMin: 0, ariaValueMax: r.order.length, ariaValueNow: r.pos, ariaLabel: "Session progress" }, el("i", { style: `transform:scaleX(${r.pos / r.order.length})` }));
   const controls = el("div", { className: "fc-controls" });
   if (!flipped) {
     controls.append(el("button", { className: "btn big", type: "button", textContent: "Show answer", onclick: () => flip() }), el("kbd", { textContent: "Space" }));
@@ -227,12 +235,13 @@ function fcRun(body) {
     if (k === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); stop(); }
     else if (!r.flipped && (k === " " || k === "Enter")) { e.preventDefault(); flip(); }
     else if (r.flipped && (k === "1" || k === "ArrowLeft")) { e.preventDefault(); answer(false); }
-    else if (r.flipped && (k === "2" || k === "ArrowRight" || k === "Enter" || k === " ")) { e.preventDefault(); answer(true); }
+    else if (r.flipped && (k === "2" || k === "ArrowRight")) { e.preventDefault(); answer(true); }
     else if (r.flipped && (k === "l" || k === "L")) { e.preventDefault(); markLearned(card, !learned); }
   }
   fcKey = onKey;
   document.addEventListener("keydown", onKey, true);
-  controls.querySelector(".btn:not(.ghost)")?.focus({ preventScroll: true });
+  if (flipped) { face.tabIndex = -1; face.focus({ preventScroll: true }); } // not on "Got it", so Space or Enter can't answer by accident
+  else controls.querySelector(".btn")?.focus({ preventScroll: true });
 }
 
 function fcDone(body) {
@@ -282,7 +291,8 @@ STUDIO.tabs.push({ id: "cards", label: "Flashcards", render: renderCards });
 
 /* ═════════════════════════════ timeline ═════════════════════════════ */
 const TL = { all: null, idx: store.get("tlIdx", 0), zoom: 1, sel: null, find: "" };
-const TL_NAMES = { BIBLE: "Bible history", NT_DET: "New Testament in detail", WORLD: "World history" };
+const TL_NAMES = { BIBLE: "Manuscripts and translations", NT_DET: "New Testament in detail", WORLD: "Biblical and world history" };
+const DICT_NAMES = { Nav: "Nave’s Topical Bible", Eas: "Easton’s Bible Dictionary" };
 const SVG = "http://www.w3.org/2000/svg";
 const svg = (tag, attrs = {}, ...kids) => {
   const n = document.createElementNS(SVG, tag);
@@ -328,6 +338,7 @@ function drawTimeline(body) {
 
   const A0 = astro(tl.axis.first), A1 = astro(tl.axis.last);
   const rowsOf = (e) => tl.eras[e.era].y + e.y;
+  tl.order = tl.events.map((e, i) => i).sort((a, b) => tl.events[a].start - tl.events[b].start || rowsOf(tl.events[a]) - rowsOf(tl.events[b]));
   const ys = tl.events.map(rowsOf), minY = Math.min(0, ...ys), maxY = Math.max(...ys, 0);
   const YS = 3, PAD = 28;
   let scale = 1;
@@ -350,17 +361,32 @@ function drawTimeline(body) {
       axis.append(svg("line", { x1: x, x2: x, y1: 20, y2: 28, class: "tl-tick" }), svg("text", { x: x + 4, y: 16, class: "tl-year" }, bw < 0 ? `${-bw} BC` : `AD ${bw}`));
       grid.append(svg("line", { x1: x, x2: x, y1: 0, y2: h }));
     }
-    const canvas = svg("svg", { class: "tl-canvas", width: w, height: h, role: "list" }, grid);
+    const canvas = svg("svg", { class: "tl-canvas", width: w, height: h, role: "group", "aria-label": "Events. Arrow keys move between them, Enter selects." }, grid);
     const need = (TL.find || "").trim().toLowerCase();
+    const isHit = (e) => !!need && e.name.toLowerCase().includes(need);
+    // Captions are placed greedily, bars and long spans first, and any that would overprint one already placed
+    // stay hidden (the event keeps a tooltip). Zooming in makes room for more.
+    const placed = [];
+    const room = (r) => !placed.some((p) => r.x < p.x + p.w + 4 && p.x < r.x + r.w + 4 && r.y < p.y + p.h && p.y < r.y + r.h);
+    const showCap = new Set();
+    tl.events.map((e, i) => i).sort((a, b) => {
+      const ea = tl.events[a], eb = tl.events[b];
+      return (eb.style === "EraBar") - (ea.style === "EraBar") || (eb.end - eb.start) - (ea.end - ea.start);
+    }).forEach((i) => {
+      const e = tl.events[i], bar = e.style === "EraBar", x1 = X(e.start), x2 = Math.max(X(e.end), x1), y = Y(e);
+      const r = { x: x1 + (bar ? 6 : x2 - x1 > 3 ? 0 : 8), y: bar ? y - 7 : y - 18, w: e.name.length * 6.3 + 2, h: bar ? 14 : 14 };
+      if (i === TL.sel || isHit(e) || room(r)) { placed.push(r); showCap.add(i); }
+    });
     tl.events.forEach((e, i) => {
       const x1 = X(e.start), x2 = Math.max(X(e.end), x1), y = Y(e);
       const bar = e.style === "EraBar";
-      const g = svg("g", { class: "tl-ev" + (i === TL.sel ? " sel" : "") + (need && e.name.toLowerCase().includes(need) ? " hit" : ""), "data-i": i, role: "listitem", tabindex: -1 });
+      const g = svg("g", { class: "tl-ev" + (i === TL.sel ? " sel" : "") + (isHit(e) ? " hit" : ""), "data-i": i, role: "button", tabindex: i === (TL.sel ?? tl.order[0]) ? 0 : -1, "aria-label": `${e.name}, ${spanText(e)}` });
       g.style.setProperty("--c", tone(e.extent_color));
       if (bar) g.append(svg("rect", { x: x1, y: y - 7, width: Math.max(x2 - x1, 2), height: 14, rx: 3, class: "tl-bar-shape" }));
       else if (x2 - x1 > 3) g.append(svg("line", { x1, x2, y1: y, y2: y, class: "tl-line" }), svg("line", { x1, x2: x1, y1: y - 3, y2: y + 3, class: "tl-line" }), svg("line", { x1: x2, x2, y1: y - 3, y2: y + 3, class: "tl-line" }));
       else g.append(svg("circle", { cx: x1, cy: y, r: 3.5, class: "tl-dot" }));
-      g.append(svg("text", { x: x1 + (bar ? 6 : x2 - x1 > 3 ? 0 : 8), y: bar ? y + 4 : y - 6, class: "tl-cap" + (bar ? " on-bar" : "") }, e.name));
+      if (showCap.has(i)) g.append(svg("text", { x: x1 + (bar ? 6 : x2 - x1 > 3 ? 0 : 8), y: bar ? y + 4 : y - 6, class: "tl-cap" + (bar ? " on-bar" : "") }, e.name));
+      else g.append(svg("title", {}, `${e.name}, ${spanText(e)}`));
       g.append(svg("rect", { x: x1 - 4, y: y - 12, width: Math.max(x2 - x1, 8) + 8, height: 20, class: "tl-hit" }));
       canvas.append(g);
     });
@@ -371,11 +397,13 @@ function drawTimeline(body) {
   function select(i, center = false) {
     TL.sel = i;
     scroll.querySelectorAll(".tl-ev.sel").forEach((n) => n.classList.remove("sel"));
+    scroll.querySelectorAll('.tl-ev[tabindex="0"]').forEach((n) => n.setAttribute("tabindex", "-1"));
     const g = scroll.querySelector(`.tl-ev[data-i="${i}"]`);
     g?.classList.add("sel");
+    g?.setAttribute("tabindex", "0");
     if (g && center) {
       const r = g.getBBox();
-      scroll.scrollTo({ left: Math.max(0, r.x - scroll.clientWidth / 3), top: Math.max(0, r.y - scroll.clientHeight / 2), behavior: "smooth" });
+      scroll.scrollTo({ left: Math.max(0, r.x - scroll.clientWidth / 3), top: Math.max(0, r.y - scroll.clientHeight / 2), behavior: reducedMotion() ? "auto" : "smooth" });
     }
     showDetail();
   }
@@ -395,10 +423,21 @@ function drawTimeline(body) {
         const text = `${S.books.find((b) => b.code === r.book)?.name ?? r.book} ${r.chapter}${r.verse ? ":" + r.verse : ""}${r.end_verse ? "–" + r.end_verse : r.end_chapter ? "–" + r.end_chapter : ""}`;
         return el("button", { className: "chip", type: "button", textContent: text, onclick: () => { closeStudio(); goToCode(r.book, r.chapter, r.verse ?? 1, "kjv"); } });
       })) : "",
-      other.length ? el("p", { className: "muted tl-other", textContent: "Also: " + other.map((l) => l.Dictionary ? `${l.Dictionary.dict} “${l.Dictionary.term}”` : `search “${l.Search}”`).join("; ") }) : "");
+      other.length ? el("p", { className: "muted tl-other", textContent: "Also: " + other.map((l) => l.Dictionary ? `${DICT_NAMES[l.Dictionary.dict] ?? l.Dictionary.dict}: ${l.Dictionary.term}` : `search “${l.Search}”`).join("; ") }) : "");
   }
 
   scroll.addEventListener("click", (ev) => { const g = ev.target.closest?.(".tl-ev"); if (g) select(+g.dataset.i); });
+  scroll.addEventListener("keydown", (ev) => {
+    const g = ev.target.closest?.(".tl-ev");
+    if (!g) return;
+    const i = +g.dataset.i, d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[ev.key];
+    if (d) {
+      ev.preventDefault();
+      const next = tl.order[Math.min(tl.order.length - 1, Math.max(0, tl.order.indexOf(i) + d))];
+      select(next, true);
+      scroll.querySelector(`.tl-ev[data-i="${next}"]`)?.focus({ preventScroll: true });
+    } else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(i); }
+  });
   scroll.addEventListener("wheel", (ev) => {
     if (!ev.ctrlKey) return;
     ev.preventDefault();
