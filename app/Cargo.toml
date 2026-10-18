@@ -1,0 +1,12 @@
+[package]
+name = "bible-study"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+bible-study-core = { path = "../core" }
+tauri = "2"
+serde = { version = "1", features = ["derive"] }

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Bible Study</title>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<header class="bar">
+  <h1 class="loc">
+    <button id="nav-btn" class="loc-btn" popovertarget="nav" aria-haspopup="dialog">
+      <span id="title">Bible Study</span>
+      <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+    </button>
+  </h1>
+  <div class="steps" role="group" aria-label="Chapter">
+    <button id="prev" class="icon-btn" title="Previous chapter ( [ )" aria-label="Previous chapter"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
+    <button id="next" class="icon-btn" title="Next chapter ( ] )" aria-label="Next chapter"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+  </div>
+  <div class="grow"></div>
+  <label class="ver"><span class="sr">Version</span><select id="v1" aria-label="Version"></select></label>
+  <label class="ver"><span class="sr">Compare with</span><select id="v2" aria-label="Compare with"></select></label>
+  <button id="cant-btn" class="icon-btn" aria-pressed="false" title="Show Hebrew cantillation marks" aria-label="Hebrew cantillation marks" hidden><span class="heb" lang="he" aria-hidden="true">א֖</span></button>
+  <button id="palette-btn" class="cmd" title="Search or go to a passage (Ctrl+K)">
+    <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+    <span>Search or go to…</span><kbd>Ctrl K</kbd>
+  </button>
+  <button id="theme-btn" class="icon-btn" aria-pressed="false" title="Dark mode" aria-label="Dark mode"></button>
+  <button id="panel-btn" class="icon-btn" aria-pressed="false" title="Toggle side panel" aria-label="Toggle side panel">
+    <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M10 3v10"/></svg>
+  </button>
+</header>
+
+<main id="main">
+  <section id="reader" class="reader" aria-label="Scripture" tabindex="-1"></section>
+
+  <aside id="panel" class="panel" aria-label="Study panel" hidden>
+    <div class="tabs" role="tablist" aria-label="Study panel">
+      <button role="tab" id="tab-search" aria-controls="pane-search" aria-selected="true">Search</button>
+      <button role="tab" id="tab-word" aria-controls="pane-word" aria-selected="false" tabindex="-1">Analysis</button>
+      <button role="tab" id="tab-notes" aria-controls="pane-notes" aria-selected="false" tabindex="-1">Notes<span class="dot" hidden aria-label="has a note"></span></button>
+      <button role="tab" id="tab-lists" aria-controls="pane-lists" aria-selected="false" tabindex="-1">Lists</button>
+      <button id="panel-wide" class="icon-btn" aria-pressed="false" title="Wider panel" aria-label="Wider panel"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3 2 8l4 5M10 3l4 5-4 5"/></svg></button>
+      <button id="panel-close" class="icon-btn" title="Close panel" aria-label="Close panel"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
+    </div>
+    <div id="pane-search" role="tabpanel" aria-labelledby="tab-search" class="pane"></div>
+    <div id="pane-word" role="tabpanel" aria-labelledby="tab-word" class="pane" hidden></div>
+    <div id="pane-notes" role="tabpanel" aria-labelledby="tab-notes" class="pane" hidden></div>
+    <div id="pane-lists" role="tabpanel" aria-labelledby="tab-lists" class="pane" hidden></div>
+  </aside>
+</main>
+
+<div id="nav" popover class="nav-pop" aria-label="Choose a passage">
+  <div class="nav-books" id="nav-books" role="list"></div>
+  <div class="nav-chapters">
+    <h2 id="nav-book-name"></h2>
+    <div id="nav-chapters" class="chap-grid"></div>
+  </div>
+</div>
+
+<dialog id="palette" class="palette" aria-label="Search or go to a passage">
+  <form method="dialog" id="palette-form">
+    <input id="q" type="text" role="combobox" aria-expanded="true" aria-controls="results" aria-autocomplete="list"
+           placeholder="Go to John 3:16, or search words, “phrases”, H430, G3056…" autocomplete="off" spellcheck="false">
+    <ul id="results" role="listbox" aria-label="Actions"></ul>
+    <p class="hint"><kbd>↵</kbd> run <kbd>↑</kbd><kbd>↓</kbd> choose <kbd>Esc</kbd> close<span class="hint-syntax">Syntax: <code>love*</code> <code>"so loved"</code> <code>G25</code> <code>H7225</code></span></p>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+<script src="library.js"></script>
+</body>
+</html>

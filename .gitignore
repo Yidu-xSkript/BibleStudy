@@ -1,0 +1,16 @@
+# build output
+/target
+
+# Tauri generated
+/app/gen
+
+# local test/scratch data
+*.bad
+/bible-study-data
+.impeccable/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
